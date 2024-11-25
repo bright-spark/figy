@@ -32,9 +32,32 @@ export interface ErrorMessage extends PluginMessage {
   type: 'error';
   payload: {
     message: string;
-    details?: Record<string, unknown>;
+    error?: Error;
   };
 }
 
-// Ensure type safety for message handling
-export type PluginMessageEvent = MessageEvent<PluginMessage>;
+// UI Element types
+export enum UIElementType {
+  TEXT = 'text',
+  RECTANGLE = 'rectangle',
+}
+
+export interface UIElement {
+  type: UIElementType;
+  content?: string;
+  properties: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+}
+
+export interface AnalysisResult {
+  elements: UIElement[];
+}
+
+// Event types
+export interface PluginMessageEvent extends MessageEvent {
+  data: PluginMessage;
+}

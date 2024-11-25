@@ -108,6 +108,7 @@ module.exports = (env, argv) => {
       new Dotenv({
         systemvars: true, // Load system environment variables
         safe: true, // Load .env.example variables
+        defaults: true, // Load .env.defaults if exists
       }),
       
       // Define global variables

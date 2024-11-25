@@ -1,7 +1,8 @@
-import { OpenAIService } from '@services/openai-service';
-import { FigmaGenerator } from '@plugin/figma-generator';
-import { PluginMessage, PluginMessageEvent } from '@types/plugin';
-import { ImageAnalysisError, OpenAIServiceError } from '@types/errors';
+import { OpenAIService } from '../../services/openai-service';
+import { FigmaGenerator } from '../figma-generator';
+import type { PluginMessageEvent } from '../../types/plugin';
+import { ImageAnalysisError, OpenAIServiceError } from '../../types/errors';
+import type { AnalysisResult } from '../../types/plugin';
 
 export class PluginController {
   private openAIService: OpenAIService;
@@ -9,13 +10,18 @@ export class PluginController {
 
   constructor(apiKey: string) {
     this.openAIService = new OpenAIService(apiKey);
-    this.figmaGenerator = new FigmaGenerator(this.openAIService);
+    this.figmaGenerator = new FigmaGenerator(
+      this.openAIService,
+      () => figma.createRectangle(),
+      () => figma.createText(),
+      (message: string) => this.notify(message, 'info')
+    );
   }
 
   private async handleAnalyzeImage(imageData: string): Promise<void> {
     try {
       const result = await this.openAIService.analyzeImage(imageData);
-      await this.figmaGenerator.generateUIFromImage(result);
+      await this.figmaGenerator.generateUIFromImage(JSON.stringify(result));
       this.notify('Successfully generated UI elements!', 'success');
     } catch (error) {
       if (error instanceof ImageAnalysisError || error instanceof OpenAIServiceError) {
