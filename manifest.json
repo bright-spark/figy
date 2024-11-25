@@ -1,0 +1,29 @@
+{
+  "name": "AI UI Converter",
+  "id": "ai-ui-converter",
+  "api": "1.0.0",
+  "main": "dist/code.js",
+  "ui": "dist/ui.html",
+  "editorType": ["figma"],
+  "networkAccess": {
+    "allowedDomains": ["openai.com", "api.openai.com"],
+    "reasoning": "Required for OpenAI API access to analyze images and generate UI elements"
+  },
+  "permissions": [
+    "currentuser",
+    "activeusers"
+  ],
+  "capabilities": [
+    "inspect",
+    "codegen",
+    "textreview",
+    "vscode"
+  ],
+  "relaunchButtons": [
+    {
+      "command": "analyze",
+      "name": "Analyze Image",
+      "multipleSelection": false
+    }
+  ]
+}
