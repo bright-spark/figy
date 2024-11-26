@@ -1,43 +1,57 @@
-import { OpenAIService } from '../../services/openai-service';
+import OpenAIService from '../../services/openai-service';
 import { FigmaGenerator } from '../figma-generator';
 import type { PluginMessageEvent } from '../../types/plugin';
 import { ImageAnalysisError, OpenAIServiceError } from '../../types/errors';
-import type { AnalysisResult } from '../../types/plugin';
+import { AnalysisResult } from '../../types/plugin';
+
+// Placeholder for plugin-level configuration and initialization
+export const initializePlugin = (apiKey: string) => {
+  const openAIService = new OpenAIService(apiKey);
+  const figmaGenerator = new FigmaGenerator(
+    openAIService,
+    () => figma.createRectangle(),
+    () => figma.createText(),
+    (message) => figma.notify(message)
+  );
+  
+  return { openAIService, figmaGenerator };
+};
+
+export interface UIElementProperties {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  text?: string;
+  color?: string;
+  backgroundColor?: string;
+  opacity?: number;
+  cornerRadius?: number;
+}
 
 export class PluginController {
   private openAIService: OpenAIService;
   private figmaGenerator: FigmaGenerator;
 
   constructor(apiKey: string) {
-    this.openAIService = new OpenAIService(apiKey);
-    this.figmaGenerator = new FigmaGenerator(
-      this.openAIService,
-      () => figma.createRectangle(),
-      () => figma.createText(),
-      (message: string) => this.notify(message, 'info')
-    );
+    const { openAIService, figmaGenerator } = initializePlugin(apiKey);
+    this.openAIService = openAIService;
+    this.figmaGenerator = figmaGenerator;
   }
 
-  private async handleAnalyzeImage(imageData: string): Promise<void> {
+  private async handleAnalyzeImage(imageData: string): Promise<AnalysisResult> {
     try {
       const result = await this.openAIService.analyzeImage(imageData);
-      await this.figmaGenerator.generateUIFromImage(JSON.stringify(result));
-      this.notify('Successfully generated UI elements!', 'success');
+      await this.figmaGenerator.generateUI(result);
+      return result;
     } catch (error) {
       if (error instanceof ImageAnalysisError || error instanceof OpenAIServiceError) {
-        this.notify(error.message, 'error');
+        figma.notify(error.message);
       } else {
-        this.notify('An unexpected error occurred', 'error');
-        console.error('Unexpected error:', error);
+        figma.notify('Unexpected error during image analysis');
       }
+      throw error;
     }
-  }
-
-  private notify(message: string, type: 'info' | 'success' | 'error' = 'info'): void {
-    figma.ui.postMessage({
-      type: 'notify',
-      payload: { message, type }
-    });
   }
 
   public async handleMessage(event: PluginMessageEvent): Promise<void> {

@@ -1,4 +1,14 @@
-import { ColorRGB } from '@types/ui';
+export interface ColorRGB {
+  r: number;
+  g: number;
+  b: number;
+}
+
+export interface RGB {
+  r: number;
+  g: number;
+  b: number;
+}
 
 export class ColorUtils {
   static hexToRGB(hex: string): ColorRGB {

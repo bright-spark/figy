@@ -1,7 +1,9 @@
-import { UIElementType } from '@plugin/code';
+// Placeholder for types and exports
+export * from './plugin';
+export * from './errors';
 
 export interface UIElement {
-  type: UIElementType;
+  type: string;
   properties: UIElementProperties;
   content?: string;
 }

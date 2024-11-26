@@ -40,24 +40,60 @@ export interface ErrorMessage extends PluginMessage {
 export enum UIElementType {
   TEXT = 'text',
   RECTANGLE = 'rectangle',
+  BUTTON = 'button',
+  FRAME = 'frame',
+  IMAGE = 'image',
+  CONTAINER = 'container',
+  UNKNOWN = 'unknown'
+}
+
+export interface UIElementProperties {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  color?: string;
+  backgroundColor?: string;
+  opacity?: number;
+  cornerRadius?: number;
 }
 
 export interface UIElement {
   type: UIElementType;
+  properties: UIElementProperties;
   content?: string;
-  properties: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  };
 }
 
-export interface AnalysisResult {
+export interface LayoutInfo {
+  width: number;
+  height: number;
   elements: UIElement[];
 }
 
+export interface AnalysisResult {
+  layout: LayoutInfo;
+  elements: UIElement[];
+}
+
+// Error types
+export class ImageAnalysisError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ImageAnalysisError';
+  }
+}
+
+export class OpenAIServiceError extends Error {
+  details?: Record<string, unknown>;
+  
+  constructor(message: string, details?: Record<string, unknown>) {
+    super(message);
+    this.name = 'OpenAIServiceError';
+    this.details = details;
+  }
+}
+
 // Event types
-export interface PluginMessageEvent extends MessageEvent {
+export interface PluginMessageEvent {
   data: PluginMessage;
 }

@@ -1,62 +1,14 @@
 import OpenAI from 'openai';
 import { 
   UIElementType, 
-  AnalysisResult as ImportedAnalysisResult,
-  ImageAnalysisError as ImportedImageAnalysisError,
-  OpenAIServiceError as ImportedOpenAIServiceError
-} from '../plugin/code';
-
-// Robust type definitions
-export interface ColorRGB {
-  r: number;
-  g: number;
-  b: number;
-}
-
-export interface UIElementProperties {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-export interface UIElement {
-  type: UIElementType;
-  properties: UIElementProperties;
-  content?: string;
-}
-
-export interface LayoutInfo {
-  width: number;
-  height: number;
-  elements: any[];
-}
-
-export interface AnalysisResult {
-  layout: LayoutInfo;
-  elements: UIElement[];
-}
-
-// Custom Errors
-export class ImageAnalysisError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ImageAnalysisError';
-  }
-}
-
-export class OpenAIServiceError extends Error {
-  details?: Record<string, unknown>;
-  constructor(message: string, details?: Record<string, unknown>) {
-    super(message);
-    this.name = 'OpenAIServiceError';
-    this.details = details;
-  }
-}
+  AnalysisResult,
+  ImageAnalysisError,
+  OpenAIServiceError
+} from '../types/plugin';
 
 export class OpenAIService {
   private client: OpenAI;
-  private ANALYSIS_PROMPT = "Analyze UI elements in image. Provide JSON with layout and elements.";
+  private ANALYSIS_PROMPT = "Analyze UI elements in image. Provide JSON with layout and elements. Ensure response is a valid JSON with these keys: layout (width, height), uiElements (type, position, style, content).";
 
   constructor(apiKey: string) {
     this.client = new OpenAI({ 
@@ -90,7 +42,8 @@ export class OpenAIService {
             ]
           }
         ],
-        max_tokens: 300
+        max_tokens: 300,
+        response_format: { type: "json_object" }
       });
 
       const content = response.choices[0]?.message?.content;
@@ -101,15 +54,9 @@ export class OpenAIService {
       try {
         return this.parseResponse(content);
       } catch (error) {
-        if (error instanceof OpenAIServiceError) {
-          throw error;
-        }
         throw new OpenAIServiceError('Failed to parse analysis response', { originalError: error });
       }
     } catch (error) {
-      if (error instanceof OpenAIServiceError) {
-        throw error;
-      }
       throw new OpenAIServiceError('Image analysis failed', { originalError: error });
     }
   }
@@ -129,9 +76,11 @@ export class OpenAIService {
             x: element.position?.x || 0,
             y: element.position?.y || 0,
             width: element.style?.width || 100,
-            height: element.style?.height || 50
+            height: element.style?.height || 50,
+            color: element.style?.color,
+            backgroundColor: element.style?.backgroundColor
           },
-          content: element.content
+          content: element.content || ''
         }))
       };
     } catch (error) {
