@@ -4,7 +4,7 @@
   "api": "1.0.0",
   "main": "dist/code.js",
   "ui": "dist/ui.html",
-  "editorType": ["figma"],
+  "editorType": ["figma", "dev"],
   "networkAccess": {
     "allowedDomains": ["openai.com", "api.openai.com"],
     "reasoning": "Required for OpenAI API access to analyze images and generate UI elements"
@@ -13,12 +13,16 @@
     "currentuser",
     "activeusers"
   ],
-  "capabilities": [
-    "inspect",
-    "codegen",
-    "textreview",
-    "vscode"
-  ],
+  "capabilities": {
+    "inspect": true,
+    "codegen": {
+      "typescript": true,
+      "javascript": true,
+      "react": true
+    },
+    "textreview": true,
+    "vscode": true
+  },
   "relaunchButtons": [
     {
       "command": "analyze",

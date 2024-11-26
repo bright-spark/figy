@@ -24,7 +24,7 @@ export class OpenAIService {
 
     try {
       const response = await this.client.chat.completions.create({
-        model: 'gpt-4-vision-preview',
+        model: 'gpt-4-0125-vision-preview',
         messages: [
           {
             role: 'user',
