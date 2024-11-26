@@ -6,23 +6,33 @@
   "ui": "dist/ui.html",
   "editorType": ["figma", "dev"],
   "networkAccess": {
-    "allowedDomains": ["openai.com", "api.openai.com"],
+    "allowedDomains": ["https://openai.com", "https://api.openai.com"],
     "reasoning": "Required for OpenAI API access to analyze images and generate UI elements"
   },
   "permissions": [
     "currentuser",
     "activeusers"
   ],
-  "capabilities": {
-    "inspect": true,
-    "codegen": {
-      "typescript": true,
-      "javascript": true,
-      "react": true
+  "capabilities": [
+    "inspect",
+    "codegen",
+    "textreview",
+    "vscode"
+  ],
+  "codegenLanguages": [
+    {
+      "label": "TypeScript",
+      "value": "typescript"
     },
-    "textreview": true,
-    "vscode": true
-  },
+    {
+      "label": "JavaScript",
+      "value": "javascript"
+    },
+    {
+      "label": "React",
+      "value": "react"
+    }
+  ],
   "relaunchButtons": [
     {
       "command": "analyze",
