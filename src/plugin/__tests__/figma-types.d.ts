@@ -1,9 +1,9 @@
 declare global {
   const figma: {
-    showUI(__html__: string, arg1: { width: number; height: number; }): unknown;
+    showUI(__html__: string, arg1: { width: number; height: number }): unknown;
     createFrame(): unknown;
     viewport: any;
-    loadFontAsync(arg0: { family: string; style: string; }): unknown;
+    loadFontAsync(arg0: { family: string; style: string }): unknown;
     createRectangle: () => RectangleNode;
     createText: () => TextNode;
     notify: (message: string, options?: { error?: boolean }) => void;

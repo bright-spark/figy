@@ -1,166 +1,145 @@
-import { OpenAIService } from '../services/openai-service';
-import { UIElement, UIElementType, AnalysisResult } from '../types/plugin';
+import OpenAIService from '../services/openai-service';
+import { UIElement, LayoutInfo, UIElementType, AnalysisResult } from '../types/plugin';
 
 export class FigmaGenerator {
   private openAIService: OpenAIService;
   private createRectangle: () => RectangleNode;
   private createText: () => TextNode;
-  private notify: (message: string) => void;
+  private notifyUser: (message: string) => void;
 
   constructor(
     openAIService: OpenAIService,
     createRectangle: () => RectangleNode,
     createText: () => TextNode,
-    notify: (message: string) => void
+    notifyUser: (message: string) => void
   ) {
     this.openAIService = openAIService;
     this.createRectangle = createRectangle;
     this.createText = createText;
-    this.notify = notify;
+    this.notifyUser = notifyUser;
   }
 
-  async generateUIFromImage(imageData: string): Promise<void> {
+  private calculateGridLayout(
+    layout: LayoutInfo,
+    totalElements: number
+  ): { columns: number; rows: number } {
+    const columns = layout.columns || Math.ceil(Math.sqrt(totalElements));
+    const rows = layout.rows || Math.ceil(totalElements / columns);
+    return { columns, rows };
+  }
+
+  private createUIElement(element: UIElement, parentFrame: FrameNode): RectangleNode | TextNode {
+    let node: RectangleNode | TextNode;
+
+    switch (element.type) {
+      case UIElementType.TEXT:
+        node = this.createText();
+        (node as TextNode).characters = element.text || '';
+        break;
+      case UIElementType.BUTTON:
+      case UIElementType.RECTANGLE:
+      case UIElementType.INPUT:
+      default:
+        node = this.createRectangle();
+        break;
+    }
+
+    node.resize(element.width, element.height);
+    node.x = element.x;
+    node.y = element.y;
+
+    // Apply styling
+    if (node.type === 'RECTANGLE') {
+      const rectNode = node as RectangleNode;
+      rectNode.fills = [
+        { type: 'SOLID', color: this.hexToRGB(element.backgroundColor || '#FFFFFF') },
+      ];
+      rectNode.opacity = element.opacity || 1;
+      rectNode.cornerRadius = element.cornerRadius || 0;
+    }
+
+    if (node.type === 'TEXT') {
+      const textNode = node as TextNode;
+      textNode.fills = [{ type: 'SOLID', color: this.hexToRGB(element.color || '#000000') }];
+    }
+
+    parentFrame.appendChild(node);
+    return node;
+  }
+
+  private hexToRGB(hex: string): RGB {
+    // Remove the hash at the start if it's there
+    hex = hex.replace(/^#/, '');
+
+    // Handle 3-digit hex
+    if (hex.length === 3) {
+      hex = hex
+        .split('')
+        .map(char => char + char)
+        .join('');
+    }
+
+    // Convert to RGB
+    const bigint = parseInt(hex, 16);
+    const r = ((bigint >> 16) & 255) / 255;
+    const g = ((bigint >> 8) & 255) / 255;
+    const b = (bigint & 255) / 255;
+
+    return { r, g, b };
+  }
+
+  async generateUI(analysisResult: AnalysisResult): Promise<FrameNode> {
+    try {
+      // Create main frame
+      const frame = figma.createFrame() as FrameNode;
+      frame.name = 'AI Generated UI';
+
+      // Calculate grid layout
+      const { columns, rows } = this.calculateGridLayout(
+        analysisResult.layout,
+        analysisResult.elements.length
+      );
+
+      // Set frame size based on elements
+      const gridSpacing = analysisResult.layout.gridSpacing || 20;
+      const margin = analysisResult.layout.margin || 10;
+
+      // Create UI elements
+      analysisResult.elements.forEach(element => {
+        this.createUIElement(element, frame);
+      });
+
+      // Resize and position frame
+      frame.layoutMode = 'HORIZONTAL';
+
+      // Add custom properties for grid-like behavior
+      (frame as any).gridRowCount = rows;
+      (frame as any).gridColumnCount = columns;
+
+      frame.itemSpacing = gridSpacing;
+      frame.paddingLeft = margin;
+      frame.paddingRight = margin;
+      frame.paddingTop = margin;
+      frame.paddingBottom = margin;
+
+      this.notifyUser('UI generated successfully');
+      return frame;
+    } catch (error) {
+      console.error('Error generating UI:', error);
+      this.notifyUser('Failed to generate UI');
+      throw error;
+    }
+  }
+
+  // Optional method for generating UI from image
+  async generateUIFromImage(imageData: string): Promise<FrameNode> {
     try {
       const analysisResult = await this.openAIService.analyzeImage(imageData);
-      await this.generateUI(analysisResult);
-      this.notify('UI elements generated successfully!');
+      return this.generateUI(analysisResult);
     } catch (error) {
-      console.error('Error generating UI:', error);
-      this.notify('Failed to generate UI');
+      console.error('Error generating UI from image:', error);
+      this.notifyUser('Failed to generate UI from image');
       throw error;
     }
-  }
-
-  async generateUI(analysis: AnalysisResult): Promise<void> {
-    try {
-      // Create main frame with analyzed dimensions
-      const frame = figma.createFrame() as FrameNode;
-      frame.resize(analysis.layout.width || 800, analysis.layout.height || 600);
-      frame.name = 'Generated UI';
-
-      // Generate UI elements
-      for (const element of analysis.elements) {
-        await this.createUIElement(element, frame);
-      }
-
-      // Center the frame in viewport
-      const viewport = figma.viewport.center;
-      frame.x = viewport.x - frame.width / 2;
-      frame.y = viewport.y - frame.height / 2;
-
-      figma.viewport.scrollAndZoomIntoView([frame]);
-    } catch (error) {
-      console.error('Error generating UI:', error);
-      throw new Error('Failed to generate UI elements');
-    }
-  }
-
-  private async createUIElement(element: UIElement, parent: FrameNode): Promise<void> {
-    const { type, properties, content } = element;
-    try {
-      switch (type) {
-        case UIElementType.TEXT:
-          await this.createTextElement({...properties, text: content}, parent);
-          break;
-        case UIElementType.RECTANGLE:
-          this.createRectangleElement(properties, parent);
-          break;
-        case UIElementType.BUTTON:
-          await this.createButtonElement({...properties, text: content}, parent);
-          break;
-        default:
-          console.warn(`Unsupported element type: ${type}`);
-      }
-    } catch (error) {
-      console.error(`Failed to create ${type} element:`, error);
-      throw error;
-    }
-  }
-
-  private async createTextElement(
-    props: UIElement['properties'] & { text?: string }, 
-    parent: FrameNode
-  ): Promise<void> {
-    try {
-      const text = this.createText();
-      await figma.loadFontAsync({ family: "Inter", style: "Regular" });
-      
-      text.characters = props.text || "";
-      text.x = props.x || 0;
-      text.y = props.y || 0;
-      
-      if (props.width) text.resize(props.width, props.height || 0);
-      if (props.color) {
-        const { r, g, b } = this.hexToRGB(props.color);
-        text.fills = [{ type: 'SOLID', color: { r, g, b } }];
-      }
-      if (props.opacity !== undefined) text.opacity = props.opacity;
-      
-      parent.appendChild(text);
-    } catch (error) {
-      console.error('Failed to create text element:', error);
-      throw error;
-    }
-  }
-
-  private createRectangleElement(props: UIElement['properties'], parent: FrameNode): void {
-    const rect = this.createRectangle();
-    rect.x = props.x || 0;
-    rect.y = props.y || 0;
-    rect.resize(props.width || 100, props.height || 100);
-    
-    if (props.backgroundColor) {
-      const { r, g, b } = this.hexToRGB(props.backgroundColor);
-      rect.fills = [{ type: 'SOLID', color: { r, g, b } }];
-    }
-    if (props.cornerRadius) rect.cornerRadius = props.cornerRadius;
-    if (props.opacity !== undefined) rect.opacity = props.opacity;
-    
-    parent.appendChild(rect);
-  }
-
-  private async createButtonElement(
-    props: UIElement['properties'] & { text?: string }, 
-    parent: FrameNode
-  ): Promise<void> {
-    const button = figma.createFrame() as FrameNode;
-    button.name = "Button";
-    button.x = props.x || 0;
-    button.y = props.y || 0;
-    button.resize(props.width || 120, props.height || 40);
-    
-    if (props.backgroundColor) {
-      const { r, g, b } = this.hexToRGB(props.backgroundColor);
-      button.fills = [{ type: 'SOLID', color: { r, g, b } }];
-    }
-    if (props.cornerRadius) button.cornerRadius = props.cornerRadius;
-    if (props.opacity !== undefined) button.opacity = props.opacity;
-
-    if (props.text) {
-      const text = this.createText();
-      await figma.loadFontAsync({ family: "Inter", style: "Regular" });
-      text.characters = props.text;
-      text.textAlignHorizontal = "CENTER";
-      text.textAlignVertical = "CENTER";
-      
-      if (props.color) {
-        const { r, g, b } = this.hexToRGB(props.color);
-        text.fills = [{ type: 'SOLID', color: { r, g, b } }];
-      }
-      
-      button.appendChild(text);
-      text.x = (button.width - text.width) / 2;
-      text.y = (button.height - text.height) / 2;
-    }
-    
-    parent.appendChild(button);
-  }
-
-  private hexToRGB(hex: string): { r: number; g: number; b: number } {
-    const cleanHex = hex.replace('#', '');
-    const r = parseInt(cleanHex.substring(0, 2), 16) / 255;
-    const g = parseInt(cleanHex.substring(2, 4), 16) / 255;
-    const b = parseInt(cleanHex.substring(4, 6), 16) / 255;
-    return { r, g, b };
   }
 }

@@ -1,46 +1,109 @@
 /// <reference types="@figma/plugin-typings" />
 
-import OpenAIService from '../../services/openai-service';
-import { FigmaGenerator } from '../figma-generator';
-import { PluginMessage } from '../../types/plugin';
+import { PluginController } from './plugin';
+import { PluginMessage, PluginMessageEvent, MessageType } from '../../types/plugin';
 
-// API Key Configuration
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+// Enhanced logging utility
+const log = (message: string, type: 'info' | 'error' | 'warn' = 'info') => {
+  const emoji = {
+    info: '✅',
+    error: '❌',
+    warn: '⚠️',
+  }[type];
+  console.log(`[Figma Plugin ${emoji}] ${message}`);
+};
 
-if (!OPENAI_API_KEY) {
-    throw new Error('OpenAI API key not found in environment variables. Please check your .env file.');
-}
+// Validate and load API key
+const validateApiKey = (): string => {
+  const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-// Initialize services
-const openAIService = new OpenAIService(OPENAI_API_KEY);
-const figmaGenerator = new FigmaGenerator(
-    openAIService,
-    () => figma.createRectangle(),
-    () => figma.createText(),
-    (message: string) => figma.notify(message)
-);
+  if (!OPENAI_API_KEY) {
+    const errorMessage = 'OpenAI API key not found. Please check your .env file.';
+    log(errorMessage, 'error');
+    figma.notify(errorMessage, { error: true });
+    throw new Error(errorMessage);
+  }
 
-// Show the plugin UI
-figma.showUI(__html__, { width: 400, height: 300 });
+  return OPENAI_API_KEY;
+};
 
-// Listen for messages from the UI
-figma.ui.onmessage = ((msg: PluginMessage) => {
-    (async () => {
-        try {
-            switch (msg.type) {
-                case 'analyze-image':
-                    if (!msg.payload?.imageData) {
-                        throw new Error('No image data provided');
-                    }
-                    await figmaGenerator.generateUIFromImage(msg.payload.imageData);
-                    break;
-                    
-                default:
-                    console.warn('Unknown message type:', msg.type);
-            }
-        } catch (error) {
-            console.error('Error handling message:', error);
-            figma.notify(error instanceof Error ? error.message : 'An unknown error occurred', { error: true });
-        }
-    })();
-}) as any;
+// Main plugin initialization function
+const initializePlugin = () => {
+  try {
+    // Validate and get API key
+    const apiKey = validateApiKey();
+
+    // Show the plugin UI with proper options
+    figma.showUI(__html__, {
+      width: 500,
+      height: 600,
+    });
+
+    // Initialize plugin controller
+    const pluginController = new PluginController(apiKey);
+
+    // Set up message handling with comprehensive error management
+    figma.ui.onmessage = (msg: any) => {
+      try {
+        log(`Received message: ${msg.type}`);
+
+        // Create a proper PluginMessageEvent
+        const messageEvent: PluginMessageEvent = {
+          data: { pluginMessage: msg as PluginMessage },
+        };
+
+        // Delegate message handling to plugin controller
+        pluginController.handleMessage(messageEvent).catch(error => {
+          const errorMessage = error instanceof Error ? error.message : 'Unexpected error occurred';
+          log(errorMessage, 'error');
+
+          // Send error back to UI
+          figma.ui.postMessage({
+            type: MessageType.ERROR,
+            payload: {
+              message: errorMessage,
+              timestamp: Date.now(),
+            },
+          });
+
+          // Notify user
+          figma.notify(errorMessage, { error: true });
+        });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unexpected error occurred';
+        log(errorMessage, 'error');
+
+        // Send error back to UI
+        figma.ui.postMessage({
+          type: MessageType.ERROR,
+          payload: {
+            message: errorMessage,
+            timestamp: Date.now(),
+          },
+        });
+
+        // Notify user
+        figma.notify(errorMessage, { error: true });
+      }
+    };
+
+    // Initial ready notification
+    figma.ui.postMessage({
+      type: MessageType.INIT,
+      payload: {
+        message: 'Plugin initialized successfully',
+        version: '1.0.0',
+        timestamp: Date.now(),
+      },
+    });
+
+    log('Plugin initialization complete');
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Plugin initialization failed';
+    log(errorMessage, 'error');
+    figma.notify(errorMessage, { error: true });
+  }
+};
+
+// Run plugin initialization
+initializePlugin();

@@ -1,9 +1,10 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { ImageUploader } from './ImageUploader';
 import { Notification } from './Notification';
 import styles from '../styles/App.module.css';
 
 export const App: React.FC = () => {
+  const [isLoading, setIsLoading] = useState(true);
   const [notification, setNotification] = useState<{
     message: string;
     type: 'info' | 'success' | 'error';
@@ -11,53 +12,87 @@ export const App: React.FC = () => {
 
   const handleImageUpload = useCallback(async (imageData: string) => {
     try {
+      setIsLoading(true);
       parent.postMessage(
         {
           pluginMessage: {
             type: 'analyze-image',
-            payload: { imageData }
-          }
+            payload: { imageData },
+          },
         },
         '*'
       );
     } catch (error) {
       setNotification({
         message: 'Failed to process image',
-        type: 'error'
+        type: 'error',
       });
+      setIsLoading(false);
     }
   }, []);
 
   // Handle messages from the plugin
-  React.useEffect(() => {
+  useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
+      if (!event.data.pluginMessage) return;
+
       const { type, payload } = event.data.pluginMessage;
-      
+
       switch (type) {
         case 'notify':
           setNotification({
             message: payload.message,
-            type: payload.type
+            type: payload.type,
           });
+          setIsLoading(false);
           break;
-          
+
         case 'error':
           setNotification({
-            message: payload.message,
-            type: 'error'
+            message: payload.message || 'An unexpected error occurred',
+            type: 'error',
           });
+          setIsLoading(false);
+          break;
+
+        case 'ready':
+          // Plugin is ready, stop loading
+          setIsLoading(false);
           break;
       }
     };
 
     window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
+
+    // Signal that UI is ready
+    parent.postMessage({ pluginMessage: { type: 'ui-ready' } }, '*');
+
+    // Initial loading timeout
+    const loadingTimeout = setTimeout(() => {
+      setIsLoading(false);
+      setNotification({
+        message: 'Plugin initialization timed out',
+        type: 'error',
+      });
+    }, 10000);
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      clearTimeout(loadingTimeout);
+    };
   }, []);
+
+  if (isLoading) {
+    return (
+      <div className={styles.loadingContainer}>
+        <div className={styles.spinner}></div>
+        <p>Loading AI UI Converter...</p>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.container}>
-      <h1 className={styles.title}>AI UI Converter</h1>
-      <ImageUploader onUpload={handleImageUpload} />
       {notification && (
         <Notification
           message={notification.message}
@@ -65,6 +100,8 @@ export const App: React.FC = () => {
           onClose={() => setNotification(null)}
         />
       )}
+      <h1 className={styles.title}>AI UI Converter</h1>
+      <ImageUploader onUpload={handleImageUpload} />
     </div>
   );
 };

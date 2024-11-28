@@ -4,7 +4,7 @@ export enum UIElementType {
   RECTANGLE = 'rectangle',
   IMAGE = 'image',
   CONTAINER = 'container',
-  UNKNOWN = 'unknown'
+  UNKNOWN = 'unknown',
 }
 
 export interface ColorRGB {

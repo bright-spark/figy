@@ -1,7 +1,9 @@
-const fs = require('fs');
-const path = require('path');
-const { default: OpenAIService } = require('../src/services/openai-service');
-require('dotenv').config();
+import * as fs from 'fs';
+import * as path from 'path';
+import * as dotenv from 'dotenv';
+import OpenAIService from '../src/services/openai-service';
+
+dotenv.config();
 
 async function testImageAnalysis() {
     try {
@@ -16,15 +18,15 @@ async function testImageAnalysis() {
             throw new Error('OPENAI_API_KEY environment variable is not set');
         }
 
-        const openaiService = new OpenAIService(apiKey);
+        const openaiService = new OpenAIService({ apiKey });
         
         console.log('Starting image analysis...');
         const result = await openaiService.analyzeImage(base64Image);
         console.log('Analysis result:', JSON.stringify(result, null, 2));
     } catch (error) {
         console.error('Test failed:', error);
-        if (error.details) {
-            console.error('Error details:', error.details);
+        if ((error as any).details) {
+            console.error('Error details:', (error as any).details);
         }
     }
 }

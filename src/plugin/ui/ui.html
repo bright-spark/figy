@@ -4,8 +4,134 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI UI Converter</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--figma-color-bg);
+            color: var(--figma-color-text);
+        }
+        #root {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        #loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            text-align: center;
+            color: var(--figma-color-text-secondary);
+        }
+        #error-container {
+            display: none;
+            color: red;
+            padding: 20px;
+            text-align: center;
+        }
+    </style>
 </head>
 <body>
-    <div id="root"></div>
+    <div id="root">
+        <div id="loading">
+            <p>Loading AI UI Converter...</p>
+        </div>
+        <div id="error-container"></div>
+    </div>
+    <script>
+        // Message types enum to match plugin controller
+        const MessageType = {
+            ANALYZE_IMAGE: 'analyze-image',
+            UI_READY: 'ui-ready',
+            READY: 'ready',
+            ERROR: 'error',
+            INIT: 'init'
+        };
+
+        // Logging utility
+        const log = (message, type = 'info') => {
+            const emoji = {
+                'info': '✅',
+                'error': '❌',
+                'warn': '⚠️'
+            }[type];
+            console.log(`[UI ${emoji}] ${message}`);
+        };
+
+        // Error handling
+        const showError = (message) => {
+            const errorContainer = document.getElementById('error-container');
+            const loadingContainer = document.getElementById('loading');
+            
+            errorContainer.textContent = message;
+            errorContainer.style.display = 'block';
+            loadingContainer.style.display = 'none';
+        };
+
+        // Send message to plugin
+        const sendMessageToPlugin = (type, payload = {}) => {
+            try {
+                parent.postMessage({ 
+                    pluginMessage: { 
+                        type, 
+                        payload: {
+                            ...payload,
+                            timestamp: Date.now()
+                        } 
+                    } 
+                }, '*');
+                log(`Sent message: ${type}`);
+            } catch (error) {
+                log(`Failed to send message: ${error}`, 'error');
+                showError('Failed to communicate with plugin');
+            }
+        };
+
+        // Message event listener with robust handling
+        window.addEventListener('message', (event) => {
+            try {
+                const { pluginMessage } = event.data;
+                
+                if (!pluginMessage || !pluginMessage.type) {
+                    log('Invalid message format', 'error');
+                    return;
+                }
+
+                log(`Received message: ${pluginMessage.type}`);
+
+                switch (pluginMessage.type) {
+                    case MessageType.INIT:
+                        log('Plugin initializing');
+                        break;
+
+                    case MessageType.READY:
+                        const loadingContainer = document.getElementById('loading');
+                        loadingContainer.textContent = 'Plugin Ready! 🚀';
+                        break;
+
+                    case MessageType.ERROR:
+                        showError(pluginMessage.payload.message || 'An unknown error occurred');
+                        break;
+
+                    default:
+                        log(`Unhandled message type: ${pluginMessage.type}`, 'warn');
+                }
+            } catch (error) {
+                log(`Error processing message: ${error}`, 'error');
+                showError('Error processing plugin message');
+            }
+        });
+
+        // Signal UI is ready when DOM is fully loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            sendMessageToPlugin(MessageType.UI_READY);
+        });
+    </script>
 </body>
 </html>

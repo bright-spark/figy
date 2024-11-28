@@ -1,58 +1,64 @@
-/* Reset */
+/* Reset default styles */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
-/* Base styles */
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
-    Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  background-color: var(--figma-color-bg);
-  color: var(--figma-color-text);
-}
-
-/* Figma theme variables */
+/* Set base font and colors */
 :root {
-  /* These will be replaced by Figma's theme variables at runtime */
-  --figma-color-bg: #ffffff;
-  --figma-color-bg-secondary: #f5f5f5;
-  --figma-color-bg-brand: #18a0fb;
-  --figma-color-bg-brand-hover: #0d8ee9;
-  --figma-color-bg-danger: #f24822;
-  --figma-color-bg-success: #14ae5c;
-  --figma-color-bg-info: #18a0fb;
-  
-  --figma-color-border: #e5e5e5;
-  --figma-color-border-brand: #18a0fb;
-  
-  --figma-color-text: #000000;
-  --figma-color-text-secondary: #333333;
-  --figma-color-text-onbrand: #ffffff;
-  
-  /* Spacing */
+  --primary-color: #18a0fb;
+  --primary-hover: #0d8ee9;
+  --text-color: #333;
+  --text-secondary: #666;
+  --border-color: #ccc;
+  --bg-color: #fff;
+  --bg-secondary: #fafafa;
   --spacing-xs: 4px;
   --spacing-sm: 8px;
   --spacing-md: 16px;
   --spacing-lg: 24px;
-  --spacing-xl: 32px;
-  
-  /* Border radius */
   --radius-sm: 4px;
   --radius-md: 6px;
   --radius-lg: 8px;
 }
 
-/* Dark theme overrides */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --figma-color-bg: #2c2c2c;
-    --figma-color-bg-secondary: #383838;
-    --figma-color-text: #ffffff;
-    --figma-color-text-secondary: #b3b3b3;
-    --figma-color-border: #444444;
-  }
+/* Base styles */
+html, body {
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--text-color);
+  background-color: var(--bg-color);
+}
+
+/* Root container */
+#root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Typography */
+h1 {
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: var(--spacing-md);
+  color: var(--text-color);
+}
+
+/* Button styles */
+button {
+  border: none;
+  outline: none;
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+}
+
+/* Input styles */
+input {
+  font-family: inherit;
+  font-size: inherit;
 }

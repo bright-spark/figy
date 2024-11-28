@@ -1,18 +1,52 @@
 .container {
-  padding: 20px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 20px;
-  min-height: 100vh;
+  padding: 20px;
+  height: 100%;
   background-color: var(--figma-color-bg);
   color: var(--figma-color-text);
 }
 
-.title {
-  font-size: 24px;
-  font-weight: 600;
-  margin: 0;
-  color: var(--figma-color-text);
+.loadingContainer {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
   text-align: center;
+}
+
+.spinner {
+  border: 4px solid var(--figma-color-bg-secondary);
+  border-top: 4px solid var(--figma-color-brand);
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+  animation: spin 1s linear infinite;
+  margin-bottom: 20px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.title {
+  margin-bottom: 20px;
+  font-size: 1.5rem;
+  color: var(--figma-color-text);
+}
+
+.notification {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: var(--figma-color-bg-secondary);
+  color: var(--figma-color-text);
+  padding: 10px 20px;
+  border-radius: 5px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  z-index: 100;
 }
