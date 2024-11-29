@@ -1,383 +1,180 @@
-import axios from 'axios';
-import OpenAIService, { RateLimitError } from '../openai-service';
-import { 
-  UIElementType, 
-  ImageAnalysisError, 
-  OpenAIServiceError 
-} from '../../types/plugin';
-
-// Mock axios
-jest.mock('axios');
-const mockedAxios = axios as jest.Mocked<typeof axios>;
-
-// Mock process.env
-const originalEnv = process.env;
+import { OpenAIService } from '../openai-service';
+import { UIElementType, UIElement } from '../../types/plugin';
 
 describe('OpenAIService', () => {
-  let openAIService: OpenAIService;
+  let service: OpenAIService;
 
   beforeEach(() => {
-    process.env = { ...originalEnv };
-    process.env.OPENAI_API_KEY = 'sk-test-key';
-    jest.useFakeTimers();
-    
-    // Mock the delay function to resolve immediately
-    jest.spyOn(OpenAIService.prototype as any, 'delay').mockImplementation(() => Promise.resolve());
-    
-    openAIService = new OpenAIService({
-      maxRetries: 3,
-      baseRetryDelay: 1000,
-      maxRetryDelay: 5000,
+    service = new OpenAIService({
+      apiKey: 'test-api-key',
+      maxRetries: 2,
+      retryDelay: 10,
+      timeout: 1000
     });
   });
 
-  afterEach(() => {
-    jest.clearAllMocks();
-    jest.clearAllTimers();
-  });
-
-  describe('constructor', () => {
-    it('should throw error if API key is missing', () => {
-      process.env.OPENAI_API_KEY = undefined;
-      expect(() => new OpenAIService()).toThrow('API key is required');
-    });
-
-    it('should throw error if API key format is invalid', () => {
-      process.env.OPENAI_API_KEY = 'invalid-key';
-      expect(() => new OpenAIService()).toThrow('Invalid API key format');
-    });
-
-    it('should use Codeium API URL for sk-proj- keys', () => {
-      process.env.OPENAI_API_KEY = 'sk-proj-test-key';
-      const service = new OpenAIService();
-      expect((service as any).baseUrl).toBe('https://api.codeium.com/v1/chat/completions');
-    });
-
-    it('should use custom retry options', () => {
-      const options = {
-        maxRetries: 5,
-        baseRetryDelay: 2000,
-        maxRetryDelay: 10000
-      };
-      const service = new OpenAIService(options);
-      expect((service as any).options).toEqual(options);
-    });
-  });
-
-  describe('analyzeImage', () => {
-    const mockImageData = 'base64-encoded-image';
-    const mockSuccessResponse = {
-      data: {
-        choices: [
-          {
-            message: {
-              content: JSON.stringify({
-                layout: { 
-                  columns: 2, 
-                  rows: 3, 
-                  gridSpacing: 10, 
-                  margin: 5 
-                },
-                elements: [
-                  {
-                    type: UIElementType.TEXT,
-                    x: 10,
-                    y: 20,
-                    width: 100,
-                    height: 50,
-                    content: 'Sample Text',
-                    style: {
-                      color: 'black',
-                      backgroundColor: 'white',
-                      opacity: 1,
-                      cornerRadius: 0
-                    }
-                  },
-                ],
-              }),
-            },
-          },
-        ],
-      },
+  describe('generateUIFromImage', () => {
+    const defaultElement: UIElement = {
+      type: UIElementType.BUTTON,
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 50,
+      text: '',
+      style: {
+        color: '#000000',
+        fontSize: 16
+      }
     };
 
-    it('should successfully analyze image', async () => {
-      mockedAxios.post.mockResolvedValue(mockSuccessResponse);
+    const createMockResponse = (layout = {}, elementOverrides: Partial<UIElement> = {}) => ({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              layout: {
+                columns: 1,
+                rows: 1,
+                margin: 10,
+                gridSpacing: 0,
+                ...layout
+              },
+              elements: [
+                {
+                  ...defaultElement,
+                  ...elementOverrides
+                }
+              ]
+            })
+          }
+        }
+      ]
+    });
 
-      const result = await openAIService.analyzeImage(mockImageData);
+    it('should generate UI layout from image data', async () => {
+      const mockResponse = createMockResponse(
+        {
+          columns: 2,
+          rows: 2,
+          gridSpacing: 10
+        },
+        {
+          text: 'Hello'
+        }
+      );
 
-      expect(result.elements.length).toBe(1);
-      expect(result.elements[0].type).toBe(UIElementType.TEXT);
-      expect(result.elements[0].x).toBe(10);
-      expect(result.elements[0].y).toBe(20);
+      // @ts-ignore - Mock implementation
+      service['openai'].chat.completions.create = jest.fn().mockResolvedValue(mockResponse);
+
+      const result = await service.generateUIFromImage('test-image-data');
+
+      expect(result.success).toBe(true);
+      expect(result.layout.columns).toBe(2);
+      expect(result.layout.rows).toBe(2);
+      expect(result.elements).toHaveLength(1);
+      expect(result.elements[0].type).toBe(UIElementType.BUTTON);
+      expect(result.elements[0].text).toBe('Hello');
+      expect(result.elements[0].style.color).toBe('#000000');
+      expect(result.elements[0].style.fontSize).toBe(16);
+    });
+
+    it('should generate UI layout with partial element data', async () => {
+      const mockResponse = createMockResponse();
+
+      // @ts-ignore - Mock implementation
+      service['openai'].chat.completions.create = jest.fn().mockResolvedValue(mockResponse);
+
+      const result = await service.generateUIFromImage('test-image-data');
+
+      expect(result.success).toBe(true);
+      expect(result.layout.columns).toBe(1);
+      expect(result.elements).toHaveLength(1);
+      expect(result.elements[0].type).toBe(UIElementType.BUTTON);
+      expect(result.elements[0].x).toBe(0);
+      expect(result.elements[0].y).toBe(0);
       expect(result.elements[0].width).toBe(100);
       expect(result.elements[0].height).toBe(50);
-      expect(result.elements[0].text).toBe('Sample Text');
-      expect(result.layout.columns).toBe(2);
-      expect(result.layout.rows).toBe(3);
-      expect(result.layout.gridSpacing).toBe(10);
-      expect(result.layout.margin).toBe(5);
-
-      // Verify API call
-      expect(mockedAxios.post).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({
-          model: 'gpt-4o-mini',
-          messages: expect.any(Array),
-          max_tokens: expect.any(Number),
-        }),
-        expect.any(Object)
-      );
+      expect(result.elements[0].text).toBe('');
+      expect(result.elements[0].style.color).toBe('#000000');
+      expect(result.elements[0].style.fontSize).toBe(16);
     });
 
-    it('should throw OpenAIServiceError for empty image data', async () => {
-      await expect(openAIService.analyzeImage('')).rejects.toThrow(OpenAIServiceError);
+    it('should throw error for invalid image data', async () => {
+      await expect(service.generateUIFromImage('')).rejects.toThrow('Invalid image data');
     });
 
-    it('should throw OpenAIServiceError for invalid image data', async () => {
-      await expect(openAIService.analyzeImage(null as any)).rejects.toThrow(OpenAIServiceError);
-      await expect(openAIService.analyzeImage(undefined as any)).rejects.toThrow(OpenAIServiceError);
-    });
-
-    it('should throw ImageAnalysisError for invalid response format', async () => {
-      mockedAxios.post.mockResolvedValue({
-        data: {
-          choices: [{ message: { content: 'Invalid JSON' } }],
-        },
+    it('should throw error for invalid API response', async () => {
+      // @ts-ignore - Mock implementation
+      service['openai'].chat.completions.create = jest.fn().mockResolvedValue({
+        choices: []
       });
 
-      await expect(openAIService.analyzeImage(mockImageData)).rejects.toThrow(ImageAnalysisError);
+      await expect(service.generateUIFromImage('test-image-data')).rejects.toThrow('Invalid API response');
     });
 
-    it('should handle rate limit errors', async () => {
-      const mockError = {
-        response: {
-          status: 429,
-          headers: {
-            'retry-after': '3600',
-          },
-        },
-      };
+    it('should retry on retriable network errors', async () => {
+      const retryableErrors = [
+        'Network connection error',
+        'Request timeout'
+      ];
 
-      mockedAxios.post.mockRejectedValue(mockError);
+      // @ts-ignore - Mock implementation
+      const mockCreate = jest.fn()
+        .mockRejectedValueOnce(new Error(retryableErrors[0]))
+        .mockRejectedValueOnce(new Error(retryableErrors[1]))
+        .mockResolvedValueOnce(createMockResponse());
 
-      await expect(openAIService.analyzeImage(mockImageData)).rejects.toThrow(RateLimitError);
-      await expect(openAIService.analyzeImage(mockImageData)).rejects.toMatchObject({
-        retryAfter: 3600,
-      });
+      service['openai'].chat.completions.create = mockCreate;
+
+      const result = await service.generateUIFromImage('test-image-data');
+      expect(result).toBeDefined();
+      expect(result.success).toBe(true);
+      expect(mockCreate).toHaveBeenCalledTimes(3);
     });
 
-    it('should handle unauthorized errors', async () => {
-      const mockError = {
-        response: {
-          status: 401,
-        },
-      };
+    it('should throw last error after max retries for non-retriable errors', async () => {
+      // @ts-ignore - Mock implementation
+      const mockCreate = jest.fn()
+        .mockRejectedValueOnce(new Error('Parsing error'))
+        .mockRejectedValueOnce(new Error('Validation error'));
 
-      mockedAxios.post.mockRejectedValue(mockError);
+      service['openai'].chat.completions.create = mockCreate;
 
-      await expect(openAIService.analyzeImage(mockImageData)).rejects.toThrow('Invalid API key or unauthorized access');
+      await expect(service.generateUIFromImage('test-image-data')).rejects.toThrow('Validation error');
+      expect(mockCreate).toHaveBeenCalledTimes(2);
     });
 
-    it('should handle 404 errors', async () => {
-      const mockError = {
-        response: {
-          status: 404,
-        },
-      };
+    it('should add jitter to retry delay', async () => {
+      const delayMock = jest.spyOn(service as any, 'delay');
+      
+      // @ts-ignore - Mock implementation
+      service['openai'].chat.completions.create = jest.fn()
+        .mockRejectedValueOnce(new Error('Network error'))
+        .mockRejectedValueOnce(new Error('Timeout'))
+        .mockResolvedValueOnce(createMockResponse());
 
-      mockedAxios.post.mockRejectedValue(mockError);
+      await service.generateUIFromImage('test-image-data');
 
-      await expect(openAIService.analyzeImage(mockImageData)).rejects.toThrow('API endpoint not found');
-    });
+      // Check that delay was called with a value that includes jitter
+      expect(delayMock).toHaveBeenCalledTimes(2);
+      const firstDelay = delayMock.mock.calls[0][0] as number;
+      const secondDelay = delayMock.mock.calls[1][0] as number;
 
-    it('should retry on server errors with backoff', async () => {
-      const mockError = {
-        response: {
-          status: 500,
-        },
-      };
+      // First delay should be around 10 * 2^0 + jitter
+      expect(firstDelay).toBeGreaterThan(10);
+      expect(firstDelay).toBeLessThan(20);
 
-      mockedAxios.post
-        .mockRejectedValueOnce(mockError)
-        .mockRejectedValueOnce(mockError)
-        .mockRejectedValueOnce(mockError)
-        .mockResolvedValueOnce({
-          data: {
-            choices: [
-              {
-                message: {
-                  content: JSON.stringify({
-                    layout: {
-                      columns: 2,
-                      rows: 3,
-                      gridSpacing: 10,
-                      margin: 5,
-                    },
-                    elements: [
-                      {
-                        type: UIElementType.TEXT,
-                        x: 10,
-                        y: 20,
-                        width: 100,
-                        height: 50,
-                        text: 'Sample Text',
-                        color: 'black',
-                        backgroundColor: 'white',
-                        opacity: 1,
-                        cornerRadius: 0,
-                      },
-                    ],
-                    components: {},
-                  }),
-                },
-              },
-            ],
-          },
-        });
+      // Second delay should be around 10 * 2^1 + jitter
+      expect(secondDelay).toBeGreaterThan(20);
+      expect(secondDelay).toBeLessThan(40);
 
-      const resultPromise = openAIService.analyzeImage(mockImageData);
-      await jest.runAllTimersAsync();
-      const result = await resultPromise;
-
-      expect(result).toEqual({
-        layout: {
-          columns: 2,
-          rows: 3,
-          gridSpacing: 10,
-          margin: 5,
-        },
-        elements: [
-          {
-            type: UIElementType.TEXT,
-            x: 10,
-            y: 20,
-            width: 100,
-            height: 50,
-            text: 'Sample Text',
-            color: 'black',
-            backgroundColor: 'white',
-            opacity: 1,
-            cornerRadius: 0,
-          },
-        ],
-        components: {},
-      });
-      expect(mockedAxios.post).toHaveBeenCalledTimes(4); // Initial try + 3 retries
-    });
-
-    it('should handle max retries exceeded', async () => {
-      const mockError = {
-        response: {
-          status: 500,
-        },
-      };
-
-      mockedAxios.post.mockRejectedValueOnce(mockError)
-        .mockRejectedValueOnce(mockError)
-        .mockRejectedValueOnce(mockError)
-        .mockRejectedValueOnce(mockError);
-
-      const resultPromise = openAIService.analyzeImage(mockImageData);
-      await jest.runAllTimersAsync();
-
-      await expect(resultPromise).rejects.toThrow('Max retry attempts exceeded');
-      expect(mockedAxios.post).toHaveBeenCalledTimes(4); // Initial try + 3 retries
-    });
-
-    it('should handle missing layout or elements in response', async () => {
-      // Test missing elements
-      mockedAxios.post.mockResolvedValue({
-        data: {
-          choices: [
-            {
-              message: {
-                content: JSON.stringify({
-                  layout: {
-                    columns: 2,
-                    rows: 3,
-                    gridSpacing: 10,
-                    margin: 5
-                  }
-                }),
-              },
-            },
-          ],
-        },
-      });
-
-      await expect(openAIService.analyzeImage(mockImageData)).rejects.toThrow('Failed to parse AI response');
-
-      // Test missing layout
-      mockedAxios.post.mockResolvedValue({
-        data: {
-          choices: [
-            {
-              message: {
-                content: JSON.stringify({
-                  elements: [
-                    {
-                      type: 'text',
-                      x: 10,
-                      y: 20,
-                      width: 100,
-                      height: 50,
-                      text: 'Sample Text',
-                      color: 'black',
-                      backgroundColor: 'white',
-                      opacity: 1,
-                      cornerRadius: 0
-                    }
-                  ]
-                }),
-              },
-            },
-          ],
-        },
-      });
-
-      await expect(openAIService.analyzeImage(mockImageData)).rejects.toThrow('Failed to parse AI response');
-    });
-
-    it('should handle invalid element type', async () => {
-      const invalidTypeResponse = {
-        data: {
-          choices: [
-            {
-              message: {
-                content: JSON.stringify({
-                  layout: {
-                    columns: 2,
-                    rows: 3,
-                    gridSpacing: 10,
-                    margin: 5
-                  },
-                  elements: [
-                    {
-                      type: 'invalid_type',
-                      x: 10,
-                      y: 20,
-                      width: 100,
-                      height: 50,
-                      text: 'Sample Text',
-                      color: 'black',
-                      backgroundColor: 'white',
-                      opacity: 1,
-                      cornerRadius: 0
-                    }
-                  ],
-                  components: {}
-                }),
-              },
-            },
-          ],
-        },
-      };
-
-      mockedAxios.post.mockResolvedValue(invalidTypeResponse);
-
-      const result = await openAIService.analyzeImage(mockImageData);
-      expect(result.elements[0].type).toBe(UIElementType.RECTANGLE); // Invalid types should default to RECTANGLE
+      // Jitter should be random
+      const firstJitter = firstDelay - 10;
+      const secondJitter = secondDelay - 20;
+      expect(firstJitter).toBeGreaterThanOrEqual(0);
+      expect(firstJitter).toBeLessThan(10);
+      expect(secondJitter).toBeGreaterThanOrEqual(0);
+      expect(secondJitter).toBeLessThan(10);
     });
   });
 });

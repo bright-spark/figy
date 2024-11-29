@@ -1,133 +1,126 @@
-import OpenAIService from '../../services/openai-service';
+import { OpenAIService } from '../../services/openai-service';
 import { FigmaGenerator } from '../figma-generator';
-import type { PluginMessageEvent, PluginMessage } from '../../types/plugin';
-import { MessageType } from '../../types/plugin';
-import { ImageAnalysisError, OpenAIServiceError } from '../../types/plugin';
-import { AnalysisResult } from '../../types/plugin';
-
-// Logging utility
-const log = (message: string, type: 'info' | 'error' | 'warn' = 'info') => {
-  const emoji = {
-    'info': '✅',
-    'error': '❌',
-    'warn': '⚠️'
-  }[type];
-  console.log(`[Plugin Controller ${emoji}] ${message}`);
-};
+import { 
+  MessageType, 
+  PluginMessageEvent, 
+  AnalysisResult, 
+  FigmaPluginAPI,
+  PluginConfig,
+  NotifyCallback
+} from '../../types/plugin';
 
 export class PluginController {
-  private _openAIService!: OpenAIService;
-  private _figmaGenerator!: FigmaGenerator;
-  private _isReady: boolean = false;
+  private readonly figmaGenerator: FigmaGenerator;
+  private readonly openAIService: OpenAIService;
+  private readonly figmaAPI: FigmaPluginAPI;
+  private readonly notifyCallback: NotifyCallback;
+  private isReady: boolean = false;
 
-  constructor(apiKey: string) {
+  get pluginReady(): boolean {
+    return this.isReady;
+  }
+
+  constructor(figmaAPI: FigmaPluginAPI, openAIService: OpenAIService, notifyCallback: NotifyCallback) {
+    this.figmaAPI = figmaAPI;
+    this.openAIService = openAIService;
+    this.notifyCallback = notifyCallback;
+
+    const config: PluginConfig = {
+      apiKey: process.env.OPENAI_API_KEY || '',
+      maxRetries: 2,
+      retryDelay: 1000,
+      timeout: 30000
+    };
+
+    if (!config.apiKey) {
+      this.logError('OpenAI API Key is missing', new Error('No API Key'));
+      this.figmaAPI.notify('OpenAI API Key is missing. Please configure in settings.', { error: true });
+    }
+
+    this.figmaGenerator = new FigmaGenerator(this.openAIService);
+
     try {
-      this._openAIService = new OpenAIService({ apiKey });
-      this._figmaGenerator = new FigmaGenerator(
-        this._openAIService,
-        () => figma.createRectangle(),
-        () => figma.createText(),
-        message => figma.notify(message)
-      );
-
-      // Send initial ready message
       this.sendMessage({
         type: MessageType.INIT,
         payload: {
-          message: 'Plugin initialized',
           version: '1.0.0',
           timestamp: Date.now()
         }
       });
     } catch (error) {
-      log(`Constructor initialization failed: ${error}`, 'error');
-      this.sendErrorMessage('Plugin initialization failed');
+      this.logError('Failed to initialize plugin', error);
+      this.sendErrorMessage('Failed to initialize plugin');
     }
   }
 
-  private sendMessage(message: PluginMessage): void {
+  private logError(message: string, error: Error | unknown): void {
+    console.error(`[Figy Error] ${message}:`, error);
+  }
+
+  private sendMessage(message: { type: MessageType; payload: any }): void {
     try {
-      figma.ui.postMessage(message);
-      log(`Sent message: ${message.type}`);
+      this.figmaAPI.ui.postMessage(message);
     } catch (error) {
-      log(`Failed to send message: ${error}`, 'error');
+      this.logError('Failed to send message', error);
     }
   }
 
-  private sendErrorMessage(errorMessage: string): void {
+  private sendErrorMessage(message: string): void {
     this.sendMessage({
       type: MessageType.ERROR,
-      payload: { 
-        message: errorMessage,
+      payload: {
+        message,
         timestamp: Date.now()
       }
     });
   }
 
-  private async handleAnalyzeImage(imageData: string): Promise<AnalysisResult> {
-    try {
-      log('Starting image analysis');
-      const result = await this._openAIService.analyzeImage(imageData);
-      await this._figmaGenerator.generateUI(result);
-      log('Image analysis completed');
-      return result;
-    } catch (error) {
-      if (error instanceof ImageAnalysisError || error instanceof OpenAIServiceError) {
-        figma.notify(error.message);
-        this.sendErrorMessage(error.message);
-      } else {
-        const errorMessage = 'Unexpected error during image analysis';
-        figma.notify(errorMessage);
-        this.sendErrorMessage(errorMessage);
-      }
-      throw error;
-    }
-  }
-
-  public async handleMessage(event: PluginMessageEvent): Promise<void> {
+  async handleMessage(event: PluginMessageEvent): Promise<void> {
     const message = event.data.pluginMessage;
-    log(`Handling message: ${message.type}`);
 
-    try {
-      switch (message.type) {
-        case MessageType.ANALYZE_IMAGE:
-          if (!message.payload?.imageData) {
-            const error = 'No image data provided';
-            log(error, 'error');
-            this.sendErrorMessage(error);
-            return;
-          }
-          await this.handleAnalyzeImage(message.payload.imageData);
-          break;
-
-        case MessageType.UI_READY:
-          log('UI ready signal received');
-          this._isReady = true;
-          this.sendMessage({
-            type: MessageType.READY,
-            payload: {
-              message: 'Plugin is fully initialized',
-              version: '1.0.0',
-              timestamp: Date.now()
-            }
-          });
-          break;
-
-        default:
-          log(`Unknown message type: ${message.type}`, 'error');
-          this.sendErrorMessage(`Unhandled message type: ${message.type}`);
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      log(errorMessage, 'error');
-      this.sendErrorMessage(errorMessage);
+    switch (message.type) {
+      case MessageType.INIT:
+        this.handleInit();
+        break;
+      case MessageType.ANALYZE_IMAGE:
+        await this.handleAnalyzeImage(message.payload);
+        break;
+      default:
+        this.logError('Unknown message type', new Error(`Unknown message type: ${message.type}`));
+        break;
     }
   }
 
-  // Getter for ready state
-  public get ready(): boolean {
-    return this._isReady;
+  private handleInit(): void {
+    console.log('[Figy] UI ready signal received');
+    this.isReady = true;
+    this.sendMessage({
+      type: MessageType.READY,
+      payload: {
+        version: '1.0.0',
+        timestamp: Date.now()
+      }
+    });
+  }
+
+  private async handleAnalyzeImage(imageData: string): Promise<void> {
+    try {
+      const result: AnalysisResult = await this.figmaGenerator.generateUIFromImage(imageData);
+      
+      if (result.success) {
+        this.notifyCallback('UI generated successfully');
+      } else {
+        this.notifyCallback(`Failed to generate UI: ${result.error}`);
+      }
+      
+      this.sendMessage({
+        type: MessageType.ANALYSIS_RESULT,
+        payload: result
+      });
+    } catch (error) {
+      this.notifyCallback(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.logError('Image analysis failed', error);
+      this.sendErrorMessage('Failed to analyze image');
+    }
   }
 }
-export { MessageType };
-

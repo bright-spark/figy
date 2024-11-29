@@ -8,7 +8,6 @@ const Dotenv = require('dotenv-webpack');
 module.exports = (env, argv) => {
   const isProduction = argv.mode === 'production';
 
-  // Explicitly load .env files
   require('dotenv').config({ 
     path: path.resolve(__dirname, '.env'),
     override: true 
@@ -27,7 +26,7 @@ module.exports = (env, argv) => {
       code: './src/plugin/controller/code.ts'
     },
 
-    target: 'web',
+    target: ['web', 'es5'],
 
     module: {
       rules: [
@@ -36,10 +35,29 @@ module.exports = (env, argv) => {
           exclude: /node_modules/,
           use: [
             {
+              loader: 'babel-loader',
+              options: {
+                cacheDirectory: true,
+                presets: [
+                  ['@babel/preset-env', { targets: { browsers: ['last 2 versions', 'safari >= 7'] } }],
+                  '@babel/preset-typescript',
+                  '@babel/preset-react'
+                ],
+                plugins: [
+                  '@babel/plugin-proposal-object-rest-spread',
+                  '@babel/plugin-transform-spread',
+                  '@babel/plugin-transform-destructuring'
+                ]
+              }
+            },
+            {
               loader: 'ts-loader',
               options: {
+                configFile: path.resolve(__dirname, 'tsconfig.json'),
                 transpileOnly: true,
-                configFile: path.resolve(__dirname, 'tsconfig.json')
+                compilerOptions: {
+                  target: 'es5'
+                }
               },
             },
           ],
@@ -87,7 +105,14 @@ module.exports = (env, argv) => {
       filename: '[name].js',
       path: path.resolve(__dirname, 'dist'),
       clean: true,
-      publicPath: '/',
+      environment: {
+        arrowFunction: false,
+        const: false,
+        destructuring: false,
+        dynamicImport: false,
+        forOf: false,
+        module: false
+      }
     },
 
     optimization: {
@@ -95,67 +120,35 @@ module.exports = (env, argv) => {
       minimizer: [
         new TerserPlugin({
           terserOptions: {
-            format: {
-              comments: false,
-            },
+            ecma: 5,
             compress: {
               drop_console: isProduction,
               drop_debugger: isProduction,
             },
+            format: {
+              comments: false,
+            },
           },
-          extractComments: false,
         }),
       ],
-      splitChunks: {
-        chunks: 'async',
-      },
     },
 
     plugins: [
-      new Dotenv({
-        path: path.resolve(__dirname, '.env'),
-        defaults: path.resolve(__dirname, '.env.defaults'),
-        safe: true,
-        systemvars: true,
-        allowEmptyValues: true,
-      }),
-
-      new webpack.DefinePlugin({
-        'process.env.NODE_ENV': JSON.stringify(argv.mode),
-        'process.env.FIGMA': JSON.stringify(true),
-        'process.env.OPENAI_API_KEY': JSON.stringify(process.env.OPENAI_API_KEY || ''),
-        'process.env.FIGMA_ACCESS_TOKEN': JSON.stringify(process.env.FIGMA_ACCESS_TOKEN || ''),
-      }),
-
-      new MiniCssExtractPlugin({
-        filename: '[name].css',
-      }),
-
       new HtmlWebpackPlugin({
         template: './src/plugin/ui/ui.html',
         filename: 'ui.html',
         chunks: ['ui'],
-        inject: 'body',
-        scriptLoading: 'blocking',
-        minify: isProduction ? {
-          removeComments: true,
-          collapseWhitespace: true,
-          removeRedundantAttributes: true,
-          useShortDoctype: true,
-          removeEmptyAttributes: true,
-          removeStyleLinkTypeAttributes: true,
-          keepClosingSlash: true,
-          minifyJS: true,
-          minifyCSS: true,
-          minifyURLs: true,
-        } : false,
+        cache: false,
+      }),
+      new MiniCssExtractPlugin({
+        filename: '[name].css',
+      }),
+      new Dotenv({
+        path: '.env',
+        safe: true,
+        systemvars: true,
+        silent: true,
       }),
     ],
-
-    performance: {
-      maxEntrypointSize: 4000000,
-      maxAssetSize: 4000000,
-      hints: isProduction ? 'warning' : false,
-    },
   };
 };

@@ -1,18 +1,58 @@
-// Comprehensive type definitions for Figma AI Plugin
+/// <reference types="@figma/plugin-typings" />
+
+export type NotifyCallback = (message: string) => void;
+
+export interface FigmaPluginAPI {
+  showUI: (html: string, options?: ShowUIOptions) => void;
+  ui: {
+    onmessage: ((msg: any) => void) | null;
+    postMessage: (msg: any) => void;
+  };
+  notify: (message: string, options?: { error?: boolean }) => void;
+}
+
+export interface ShowUIOptions {
+  width?: number;
+  height?: number;
+}
+
+export interface PluginConfig {
+  apiKey: string;
+  maxRetries: number;
+  retryDelay: number;
+  timeout: number;
+}
+
+export interface PluginMessageEvent {
+  data: {
+    pluginMessage: any;
+  };
+}
 
 export enum MessageType {
-  ANALYZE_IMAGE = 'analyze-image',
-  UI_READY = 'ui-ready',
-  READY = 'ready',
-  ERROR = 'error',
-  INIT = 'init',
+  INIT = 'INIT',
+  ANALYZE_IMAGE = 'ANALYZE_IMAGE',
+  ANALYSIS_RESULT = 'ANALYSIS_RESULT',
+  ERROR = 'ERROR',
+  READY = 'READY'
+}
+
+export interface PluginMessage {
+  type: MessageType;
+  payload: any;
 }
 
 export enum UIElementType {
-  RECTANGLE = 'rectangle',
-  TEXT = 'text',
-  BUTTON = 'button',
-  INPUT = 'input',
+  TEXT = 'TEXT',
+  BUTTON = 'BUTTON',
+  IMAGE = 'IMAGE',
+  FRAME = 'FRAME',
+  RECTANGLE = 'RECTANGLE'
+}
+
+export interface UIStyle {
+  color: string;
+  fontSize: number;
 }
 
 export interface UIElement {
@@ -21,66 +61,27 @@ export interface UIElement {
   y: number;
   width: number;
   height: number;
-  text?: string;
-  color?: string;
-  backgroundColor?: string;
-  opacity?: number;
-  cornerRadius?: number;
+  text: string;
+  style: UIStyle;
 }
 
 export interface LayoutInfo {
   columns: number;
   rows: number;
-  gridSpacing: number;
   margin: number;
+  gridSpacing: number;
 }
 
 export interface AnalysisResult {
+  success: boolean;
+  error?: string;
   layout: LayoutInfo;
   elements: UIElement[];
-  components?: {
-    react?: string;
-    vue?: string;
-    angular?: string;
-    html?: string;
-  };
-}
-
-export interface PluginMessagePayload {
-  imageData?: string;
-  message?: string;
-  version?: string;
-  timestamp?: number;
-}
-
-export interface PluginMessage {
-  type: MessageType;
-  payload?: PluginMessagePayload;
-}
-
-export interface PluginMessageEvent {
-  data: {
-    pluginMessage: PluginMessage;
-  };
-}
-
-export class ImageAnalysisError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ImageAnalysisError';
-  }
 }
 
 export class OpenAIServiceError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'OpenAIServiceError';
-  }
-}
-
-export class PluginInitializationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'PluginInitializationError';
   }
 }
