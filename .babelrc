@@ -4,21 +4,43 @@
       "@babel/preset-env",
       {
         "targets": {
-          "browsers": [
-            "last 2 versions",
-            "safari >= 7"
-          ]
+          "chrome": "49",
+          "firefox": "52",
+          "safari": "10",
+          "edge": "14"
         },
         "useBuiltIns": "usage",
-        "corejs": 3
+        "corejs": { "version": 3, "proposals": true },
+        "modules": "commonjs",
+        "loose": false,
+        "exclude": ["transform-typeof-symbol"]
       }
     ],
-    "@babel/preset-typescript",
+    ["@babel/preset-typescript", {
+      "allowDeclareFields": true,
+      "onlyRemoveTypeImports": true,
+      "isTSX": true,
+      "allExtensions": true
+    }],
     "@babel/preset-react"
   ],
   "plugins": [
-    "@babel/plugin-proposal-object-rest-spread",
-    "@babel/plugin-transform-spread",
-    "@babel/plugin-transform-destructuring"
+    ["@babel/plugin-transform-runtime", {
+      "corejs": 3,
+      "helpers": true,
+      "regenerator": true
+    }],
+    ["@babel/plugin-transform-object-rest-spread", {
+      "loose": false,
+      "useBuiltIns": true
+    }],
+    ["@babel/plugin-transform-class-properties", { "loose": false }],
+    ["@babel/plugin-transform-private-methods", { "loose": false }],
+    ["@babel/plugin-transform-private-property-in-object", { "loose": false }],
+    "@babel/plugin-transform-parameters",
+    "@babel/plugin-transform-destructuring",
+    "@babel/plugin-transform-arrow-functions",
+    "@babel/plugin-transform-block-scoping",
+    "@babel/plugin-transform-classes"
   ]
 }

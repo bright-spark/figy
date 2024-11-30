@@ -2,7 +2,11 @@ import { OpenAIService } from '../services/openai-service';
 import { AnalysisResult } from '../types/plugin';
 
 export class FigmaGenerator {
-  constructor(private readonly openAIService: OpenAIService) {}
+  private readonly openAIService: OpenAIService;
+
+  constructor(openAIService: OpenAIService) {
+    this.openAIService = openAIService;
+  }
 
   async generateUIFromImage(imageData: string): Promise<AnalysisResult> {
     try {
@@ -15,9 +19,9 @@ export class FigmaGenerator {
           columns: 1,
           rows: 1,
           margin: 10,
-          gridSpacing: 10
+          gridSpacing: 10,
         },
-        elements: []
+        elements: [],
       };
     }
   }

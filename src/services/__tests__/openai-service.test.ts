@@ -9,7 +9,7 @@ describe('OpenAIService', () => {
       apiKey: 'test-api-key',
       maxRetries: 2,
       retryDelay: 10,
-      timeout: 1000
+      timeout: 1000,
     });
   });
 
@@ -23,8 +23,8 @@ describe('OpenAIService', () => {
       text: '',
       style: {
         color: '#000000',
-        fontSize: 16
-      }
+        fontSize: 16,
+      },
     };
 
     const createMockResponse = (layout = {}, elementOverrides: Partial<UIElement> = {}) => ({
@@ -37,18 +37,18 @@ describe('OpenAIService', () => {
                 rows: 1,
                 margin: 10,
                 gridSpacing: 0,
-                ...layout
+                ...layout,
               },
               elements: [
                 {
                   ...defaultElement,
-                  ...elementOverrides
-                }
-              ]
-            })
-          }
-        }
-      ]
+                  ...elementOverrides,
+                },
+              ],
+            }),
+          },
+        },
+      ],
     });
 
     it('should generate UI layout from image data', async () => {
@@ -56,15 +56,15 @@ describe('OpenAIService', () => {
         {
           columns: 2,
           rows: 2,
-          gridSpacing: 10
+          gridSpacing: 10,
         },
         {
-          text: 'Hello'
+          text: 'Hello',
         }
       );
 
-      // @ts-ignore - Mock implementation
-      service['openai'].chat.completions.create = jest.fn().mockResolvedValue(mockResponse);
+      // @ts-expect-error - Mock implementation
+      service['client'].chat.completions.create = jest.fn().mockResolvedValue(mockResponse);
 
       const result = await service.generateUIFromImage('test-image-data');
 
@@ -81,8 +81,8 @@ describe('OpenAIService', () => {
     it('should generate UI layout with partial element data', async () => {
       const mockResponse = createMockResponse();
 
-      // @ts-ignore - Mock implementation
-      service['openai'].chat.completions.create = jest.fn().mockResolvedValue(mockResponse);
+      // @ts-expect-error - Mock implementation
+      service['client'].chat.completions.create = jest.fn().mockResolvedValue(mockResponse);
 
       const result = await service.generateUIFromImage('test-image-data');
 
@@ -104,27 +104,27 @@ describe('OpenAIService', () => {
     });
 
     it('should throw error for invalid API response', async () => {
-      // @ts-ignore - Mock implementation
-      service['openai'].chat.completions.create = jest.fn().mockResolvedValue({
-        choices: []
+      // @ts-expect-error - Mock implementation
+      service['client'].chat.completions.create = jest.fn().mockResolvedValue({
+        choices: [],
       });
 
-      await expect(service.generateUIFromImage('test-image-data')).rejects.toThrow('Invalid API response');
+      await expect(service.generateUIFromImage('test-image-data')).rejects.toThrow(
+        'Invalid API response'
+      );
     });
 
     it('should retry on retriable network errors', async () => {
-      const retryableErrors = [
-        'Network connection error',
-        'Request timeout'
-      ];
+      const retryableErrors = ['Network connection error', 'Request timeout'];
 
-      // @ts-ignore - Mock implementation
-      const mockCreate = jest.fn()
+      // @ts-expect-error - Mock implementation
+      const mockCreate = jest
+        .fn()
         .mockRejectedValueOnce(new Error(retryableErrors[0]))
         .mockRejectedValueOnce(new Error(retryableErrors[1]))
         .mockResolvedValueOnce(createMockResponse());
 
-      service['openai'].chat.completions.create = mockCreate;
+      service['client'].chat.completions.create = mockCreate;
 
       const result = await service.generateUIFromImage('test-image-data');
       expect(result).toBeDefined();
@@ -133,22 +133,29 @@ describe('OpenAIService', () => {
     });
 
     it('should throw last error after max retries for non-retriable errors', async () => {
-      // @ts-ignore - Mock implementation
-      const mockCreate = jest.fn()
+      // @ts-expect-error - Mock implementation
+      const mockCreate = jest
+        .fn()
         .mockRejectedValueOnce(new Error('Parsing error'))
         .mockRejectedValueOnce(new Error('Validation error'));
 
-      service['openai'].chat.completions.create = mockCreate;
+      service['client'].chat.completions.create = mockCreate;
 
-      await expect(service.generateUIFromImage('test-image-data')).rejects.toThrow('Validation error');
+      await expect(service.generateUIFromImage('test-image-data')).rejects.toThrow(
+        'Validation error'
+      );
       expect(mockCreate).toHaveBeenCalledTimes(2);
     });
 
     it('should add jitter to retry delay', async () => {
-      const delayMock = jest.spyOn(service as any, 'delay');
-      
-      // @ts-ignore - Mock implementation
-      service['openai'].chat.completions.create = jest.fn()
+      const delayMock = jest.spyOn(service, 'delay' as keyof OpenAIService) as jest.SpyInstance<
+        Promise<void>,
+        [number]
+      >;
+
+      // @ts-expect-error - Mock implementation
+      service['client'].chat.completions.create = jest
+        .fn()
         .mockRejectedValueOnce(new Error('Network error'))
         .mockRejectedValueOnce(new Error('Timeout'))
         .mockResolvedValueOnce(createMockResponse());

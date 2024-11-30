@@ -1,8 +1,7 @@
 declare global {
-  const figma: {
-    showUI(__html__: string, arg1: { width: number; height: number }): unknown;
+  const figma: FigmaPluginAPI & {
     createFrame(): unknown;
-    viewport: any;
+    viewport: Viewport;
     loadFontAsync(arg0: { family: string; style: string }): unknown;
     createRectangle: () => RectangleNode;
     createText: () => TextNode;
@@ -10,10 +9,6 @@ declare global {
     currentPage: {
       selection: readonly SceneNode[];
       appendChild: (node: SceneNode) => void;
-    };
-    ui: {
-      onmessage: (callback: (msg: any) => void) => void;
-      postMessage: (msg: any) => void;
     };
     root: {
       getPluginData: (key: string) => string;
@@ -53,11 +48,36 @@ declare global {
     fills: Paint[];
   }
 
+  interface Viewport {
+    center: { x: number; y: number };
+    zoom: number;
+  }
+
   type Paint = {
     type: string;
     color?: { r: number; g: number; b: number };
     opacity?: number;
   };
+
+  interface ShowUIOptions {
+    width?: number;
+    height?: number;
+    visible?: boolean;
+  }
+
+  interface UIEventHandler {
+    postMessage: (pluginMessage: Record<string, unknown>) => void;
+  }
+
+  interface FigmaUI {
+    onmessage: ((msg: Record<string, unknown>) => void) | null;
+    postMessage: (pluginMessage: Record<string, unknown>) => void;
+  }
+
+  interface FigmaPluginAPI {
+    ui: UIEventHandler;
+    showUI: (html: string, options?: ShowUIOptions) => void;
+  }
 }
 
 export {};

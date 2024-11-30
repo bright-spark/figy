@@ -13,7 +13,7 @@ describe('FigmaGenerator', () => {
       apiKey: 'test-key',
       maxRetries: 2,
       retryDelay: 10,
-      timeout: 1000
+      timeout: 1000,
     }) as jest.Mocked<OpenAIService>;
     generator = new FigmaGenerator(mockOpenAIService);
   });
@@ -28,7 +28,7 @@ describe('FigmaGenerator', () => {
           columns: 2,
           rows: 2,
           margin: 10,
-          gridSpacing: 10
+          gridSpacing: 10,
         },
         elements: [
           {
@@ -40,10 +40,10 @@ describe('FigmaGenerator', () => {
             text: 'Click me',
             style: {
               color: '#000000',
-              fontSize: 16
-            }
-          }
-        ]
+              fontSize: 16,
+            },
+          },
+        ],
       };
 
       mockOpenAIService.generateUIFromImage.mockResolvedValue(analysisResult);
@@ -65,9 +65,9 @@ describe('FigmaGenerator', () => {
           columns: 1,
           rows: 1,
           margin: 10,
-          gridSpacing: 10
+          gridSpacing: 10,
         },
-        elements: []
+        elements: [],
       };
 
       mockOpenAIService.generateUIFromImage.mockResolvedValue(analysisResult);

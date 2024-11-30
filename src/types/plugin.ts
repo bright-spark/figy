@@ -1,14 +1,15 @@
 /// <reference types="@figma/plugin-typings" />
 
-export type NotifyCallback = (message: string) => void;
+export type NotifyCallback = (message: string, options: Record<string, unknown>) => void;
 
 export interface FigmaPluginAPI {
-  showUI: (html: string, options?: ShowUIOptions) => void;
   ui: {
-    onmessage: ((msg: any) => void) | null;
-    postMessage: (msg: any) => void;
+    onmessage: ((msg: Record<string, unknown>) => void) | null;
+    postMessage: (msg: Record<string, unknown>) => void;
   };
+  showUI: (html: string, options?: ShowUIOptions) => void;
   notify: (message: string, options?: { error?: boolean }) => void;
+  handleMessage?: (message: PluginMessage) => Promise<void>;
 }
 
 export interface ShowUIOptions {
@@ -25,7 +26,7 @@ export interface PluginConfig {
 
 export interface PluginMessageEvent {
   data: {
-    pluginMessage: any;
+    pluginMessage: PluginMessage;
   };
 }
 
@@ -34,12 +35,17 @@ export enum MessageType {
   ANALYZE_IMAGE = 'ANALYZE_IMAGE',
   ANALYSIS_RESULT = 'ANALYSIS_RESULT',
   ERROR = 'ERROR',
-  READY = 'READY'
+  READY = 'READY',
 }
 
 export interface PluginMessage {
   type: MessageType;
-  payload: any;
+  payload: Record<string, unknown>;
+}
+
+export interface UIMessage {
+  type: MessageType;
+  payload: Record<string, unknown>;
 }
 
 export enum UIElementType {
@@ -47,7 +53,7 @@ export enum UIElementType {
   BUTTON = 'BUTTON',
   IMAGE = 'IMAGE',
   FRAME = 'FRAME',
-  RECTANGLE = 'RECTANGLE'
+  RECTANGLE = 'RECTANGLE',
 }
 
 export interface UIStyle {
@@ -79,9 +85,22 @@ export interface AnalysisResult {
   elements: UIElement[];
 }
 
+export interface ErrorCallback {
+  (error: Error): void;
+}
+
 export class OpenAIServiceError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'OpenAIServiceError';
   }
+}
+
+export interface MessageHandler {
+  handleMessage(message: PluginMessage): Promise<void>;
+}
+
+export interface PluginController extends MessageHandler {
+  handleMessage(message: PluginMessage): Promise<void>;
+  onMessage?: (message: PluginMessage) => Promise<void>;
 }

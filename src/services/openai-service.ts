@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { UIElementType } from '../types/plugin';
+import { UIElementType, UIElement as PluginUIElement, LayoutInfo } from '../types/plugin';
 
 interface OpenAIServiceConfig {
   apiKey: string;
@@ -8,109 +8,121 @@ interface OpenAIServiceConfig {
   timeout?: number;
 }
 
-interface UILayoutResponse {
-  layout: {
-    columns: number;
-    rows: number;
-    margin?: number;
-    gridSpacing?: number;
+type UIElement = PluginUIElement;
+
+interface UILayout extends LayoutInfo {}
+
+interface GenerateUIResponse {
+  success: boolean;
+  layout: UILayout;
+  elements: UIElement[];
+}
+
+interface ParsedElementResponse {
+  type: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  text?: string;
+  style?: {
+    color?: string;
+    fontSize?: number;
   };
-  elements: Array<{
-    type: string;
-    x?: number;
-    y?: number;
-    width?: number;
-    height?: number;
-    text?: string;
-    style?: {
-      color?: string;
-      fontSize?: number;
-    };
-  }>;
+}
+
+interface ParsedLayoutResponse {
+  columns?: number;
+  rows?: number;
+  margin?: number;
+  gridSpacing?: number;
+}
+
+interface ParsedResponse {
+  layout: ParsedLayoutResponse;
+  elements: ParsedElementResponse[];
 }
 
 export class OpenAIService {
-  private openai: OpenAI;
-  private config: OpenAIServiceConfig;
+  private client: OpenAI;
+  private maxRetries: number;
+  private retryDelay: number;
 
   constructor(config: OpenAIServiceConfig) {
-    this.config = {
-      maxRetries: 2,
-      retryDelay: 10,
-      timeout: 1000,
-      ...config
-    };
-
-    this.openai = new OpenAI({
+    this.client = new OpenAI({
       apiKey: config.apiKey,
-      maxRetries: this.config.maxRetries,
-      timeout: this.config.timeout
+      timeout: config.timeout,
     });
+    this.maxRetries = config.maxRetries || 3;
+    this.retryDelay = config.retryDelay || 1000;
   }
 
-  private delay(ms: number): Promise<void> {
-    const jitter = Math.random() * ms * 0.5;
-    return new Promise(resolve => setTimeout(resolve, ms + jitter));
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  private isRetriableError(error: Error): boolean {
-    const retriableErrors = [
-      'Network connection error',
-      'Request timeout',
-      'Network error',
-      'Timeout'
-    ];
-    return retriableErrors.some(errorType => 
-      error.message.toLowerCase().includes(errorType.toLowerCase())
-    );
-  }
-
-  async generateUIFromImage(imageData: string) {
-    if (!imageData) {
-      throw new Error('Invalid image data');
+  private async retry<T>(fn: () => Promise<T>, retries = this.maxRetries): Promise<T> {
+    try {
+      return await fn();
+    } catch (error) {
+      if (retries <= 0) throw error;
+      await this.sleep(this.retryDelay);
+      return this.retry(fn, retries - 1);
     }
+  }
 
-    let retries = 0;
-    const maxRetries = this.config.maxRetries || 2;
+  async generateUIFromImage(base64Image: string): Promise<GenerateUIResponse> {
+    const systemPrompt = `You are an expert UI designer and developer. Analyze the provided image and generate a detailed UI layout description. Focus on:
+1. Layout structure and hierarchy
+2. Component placement and relationships
+3. Visual styling (colors, typography, spacing)
+4. Interactive elements and their behavior
+5. Responsive design considerations`;
 
-    while (retries <= maxRetries) {
-      try {
-        const response = await this.openai.chat.completions.create({
-          model: 'gpt-4o-mini', //ALWAYS use gpt-4o-mini
-          messages: [
-            {
-              role: 'user',
-              content: [
-                {
-                  type: 'image_url',
-                  image_url: { url: imageData }
+    const userPrompt =
+      'Please analyze this UI design image and provide a detailed description of the layout and components.';
+
+    return this.retry(async () => {
+      const response = await this.client.chat.completions.create({
+        model: 'gpt-4o-mini', // ALWAYS USE gpt-4o-mini
+        messages: [
+          {
+            role: 'system',
+            content: systemPrompt,
+          },
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: userPrompt },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: base64Image,
                 },
-                {
-                  type: 'text',
-                  text: 'Analyze this image and generate a JSON layout with UI elements. Include layout details and element specifications.'
-                }
-              ]
-            }
-          ],
-          max_tokens: 1024
-        });
+              },
+            ],
+          },
+        ],
+        max_tokens: 4096,
+      });
 
-        const choiceContent = response.choices[0]?.message?.content;
-        if (!choiceContent) {
-          throw new Error('Invalid API response');
-        }
+      const choiceContent = response.choices[0]?.message?.content;
+      if (!choiceContent) {
+        throw new Error('Invalid API response');
+      }
 
-        const parsedResponse = JSON.parse(choiceContent) as UILayoutResponse;
+      const parsedResponse = JSON.parse(choiceContent) as ParsedResponse;
 
-        // Validate and transform the response
-        const layout = {
-          columns: parsedResponse.layout.columns || 1,
-          rows: parsedResponse.layout.rows || 1,
-          margin: parsedResponse.layout.margin || 10,
-          gridSpacing: parsedResponse.layout.gridSpacing || 0
-        };
+      // Validate and transform the response
+      const layout: UILayout = {
+        columns: parsedResponse.layout.columns || 1,
+        rows: parsedResponse.layout.rows || 1,
+        margin: parsedResponse.layout.margin || 10,
+        gridSpacing: parsedResponse.layout.gridSpacing || 0,
+      };
 
-        const elements = parsedResponse.elements.map(element => ({
+      const elements: UIElement[] = parsedResponse.elements.map(
+        (element: ParsedElementResponse) => ({
           type: this.mapElementType(element.type),
           x: element.x ?? 0,
           y: element.y ?? 0,
@@ -119,46 +131,30 @@ export class OpenAIService {
           text: element.text ?? '',
           style: {
             color: element.style?.color ?? '#000000',
-            fontSize: element.style?.fontSize ?? 16
-          }
-        }));
+            fontSize: element.style?.fontSize ?? 16,
+          },
+        })
+      );
 
-        return {
-          success: true,
-          layout,
-          elements
-        };
-      } catch (error) {
-        if (error instanceof Error) {
-          if (!this.isRetriableError(error) || retries === maxRetries) {
-            throw error;
-          }
-        }
-
-        // Retry with exponential backoff
-        const delay = (this.config.retryDelay || 10) * Math.pow(2, retries);
-        await this.delay(delay);
-        retries++;
-      }
-    }
-
-    throw new Error('Max retries exceeded');
+      return {
+        success: true,
+        layout,
+        elements,
+      };
+    });
   }
 
   private mapElementType(type: string): UIElementType {
-    switch (type.toUpperCase()) {
-      case 'TEXT':
-        return UIElementType.TEXT;
-      case 'BUTTON':
-        return UIElementType.BUTTON;
-      case 'IMAGE':
-        return UIElementType.IMAGE;
-      case 'FRAME':
-        return UIElementType.FRAME;
-      case 'RECTANGLE':
-        return UIElementType.RECTANGLE;
-      default:
-        return UIElementType.RECTANGLE;
-    }
+    const typeMap: { [key: string]: UIElementType } = {
+      button: UIElementType.BUTTON,
+      text: UIElementType.TEXT,
+      image: UIElementType.IMAGE,
+      container: UIElementType.FRAME,
+      input: UIElementType.RECTANGLE,
+    };
+
+    return typeMap[type.toLowerCase()] || UIElementType.RECTANGLE;
   }
 }
+
+export default OpenAIService;
