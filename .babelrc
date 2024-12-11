@@ -11,7 +11,7 @@
         },
         "useBuiltIns": "usage",
         "corejs": { "version": 3, "proposals": true },
-        "modules": "commonjs",
+        "modules": false, 
         "loose": false,
         "exclude": ["transform-typeof-symbol"]
       }
@@ -30,17 +30,8 @@
       "helpers": true,
       "regenerator": true
     }],
-    ["@babel/plugin-transform-object-rest-spread", {
-      "loose": false,
-      "useBuiltIns": true
-    }],
-    ["@babel/plugin-transform-class-properties", { "loose": false }],
-    ["@babel/plugin-transform-private-methods", { "loose": false }],
-    ["@babel/plugin-transform-private-property-in-object", { "loose": false }],
-    "@babel/plugin-transform-parameters",
-    "@babel/plugin-transform-destructuring",
-    "@babel/plugin-transform-arrow-functions",
-    "@babel/plugin-transform-block-scoping",
-    "@babel/plugin-transform-classes"
+    "@babel/plugin-proposal-class-properties",
+    "@babel/plugin-proposal-object-rest-spread",
+    "@babel/plugin-proposal-decorators"
   ]
 }
